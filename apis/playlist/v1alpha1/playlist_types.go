@@ -27,12 +27,28 @@ import (
 
 // PlaylistParameters are the configurable fields of a Playlist.
 type PlaylistParameters struct {
-	ConfigurableField string `json:"configurableField"`
+	// The name for the new playlist, for example "Your Coolest Playlist". This name does not need to be unique; a user may have several playlists with the same name.
+	Name string `json:"name"`
+
+	// Defaults to true. If true the playlist will be public, if false it will be private. To be able to create private playlists, the user must have granted the playlist-modify-private scope
+	// +optional
+	// +kubebuilder:default=true
+	Public *bool `json:"public,omitempty"`
+
+	// Defaults to false. If true the playlist will be collaborative. Note: to create a collaborative playlist you must also set public to false. To create collaborative playlists you must have granted playlist-modify-private and playlist-modify-public scopes.
+	// +optional
+	// +kubebuilder:default=false
+	Collaborative *bool `json:"collaborative,omitempty"`
+
+	// Description is the value for playlist description as displayed in Spotify Clients and in the Web API.
+	// +optional
+	Description *string `json:"description,omitempty"`
 }
 
 // PlaylistObservation are the observable fields of a Playlist.
 type PlaylistObservation struct {
-	ObservableField string `json:"observableField,omitempty"`
+	// The Spotify ID for the playlist.
+	Id string `json:"id"`
 }
 
 // A PlaylistSpec defines the desired state of a Playlist.
