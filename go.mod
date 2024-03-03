@@ -1,6 +1,6 @@
 module github.com/maximiliantech/provider-spotify
 
-go 1.22
+go 1.20
 
 require (
 	github.com/crossplane/crossplane-runtime v1.15.1
