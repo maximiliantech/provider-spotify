@@ -20,13 +20,15 @@ package apis
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
-	spotifyv1alpha1 "github.com/maximiliantech/provider-spotify/apis/v1alpha1"
+	playlistv1alpha1 "github.com/maximiliantech/provider-spotify/apis/playlist/v1alpha1"
+	"github.com/maximiliantech/provider-spotify/apis/v1alpha1"
 )
 
 func init() {
 	// Register the types with the Scheme so the components can map objects to GroupVersionKinds and back
 	AddToSchemes = append(AddToSchemes,
-		spotifyv1alpha1.SchemeBuilder.AddToScheme,
+		v1alpha1.SchemeBuilder.AddToScheme,
+		playlistv1alpha1.SchemeBuilder.AddToScheme,
 	)
 }
 
