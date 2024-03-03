@@ -1,6 +1,6 @@
 # provider-spotify
 
-`provider-spotify` is a experimental [Crossplane](https://crossplane.io/) Provider.
+`provider-spotify` is an experimental [Crossplane](https://crossplane.io/) Provider.
 
 Currently, this provider supports the following resources:
 - A `ProviderConfig` type that only points to a credentials `Secret`.
