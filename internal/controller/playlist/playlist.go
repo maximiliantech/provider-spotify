@@ -18,6 +18,7 @@ package playlist
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -60,12 +61,14 @@ var (
 		if err != nil {
 			return nil, errors.Wrap(err, errUnmarshalCreds)
 		}
-		ctx := context.Background()
+		clientID, _ := base64.StdEncoding.DecodeString(credentials.ClientID)
+		clientSecret, _ := base64.StdEncoding.DecodeString(credentials.ClientSecret)
 		config := &clientcredentials.Config{
-			ClientID:     credentials.ClientID,
-			ClientSecret: credentials.ClientSecret,
+			ClientID:     string(clientID),
+			ClientSecret: string(clientSecret),
 			TokenURL:     spotify.TokenURL,
 		}
+		ctx := context.Background()
 		token, err := config.Token(ctx)
 		if err != nil {
 			return nil, err
