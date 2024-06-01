@@ -87,6 +87,20 @@ run: go.build
 	@# To see other arguments that can be provided, run the command with --help instead
 	$(GO_OUT_DIR)/provider --debug
 
+dev-debug: $(KIND) $(KUBECTL)
+	@$(INFO) Creating kind cluster
+	@$(KIND) create cluster --name=$(PROJECT_NAME)-dev
+	@$(KUBECTL) cluster-info --context kind-$(PROJECT_NAME)-dev
+	@$(INFO) Installing Crossplane CRDs
+	@$(KUBECTL) create -k https://github.com/crossplane/crossplane//cluster?ref=master
+	@$(INFO) Installing Provider Template CRDs
+	@$(KUBECTL) apply -R -f package/crds
+	@$(INFO) Creating crossplane-system namespace
+	@$(KUBECTL) create ns crossplane-system
+	@$(INFO) Creating provider config and secret
+	@$(KUBECTL) apply -R -f examples/provider
+	@$(INFO) Now you can debug the provider with the IDE...
+
 dev: $(KIND) $(KUBECTL)
 	@$(INFO) Creating kind cluster
 	@$(KIND) create cluster --name=$(PROJECT_NAME)-dev
@@ -95,6 +109,8 @@ dev: $(KIND) $(KUBECTL)
 	@$(KUBECTL) apply -k https://github.com/crossplane/crossplane//cluster?ref=master
 	@$(INFO) Installing Provider Spotify CRDs
 	@$(KUBECTL) apply -R -f package/crds
+	@$(INFO) Creating crossplane-system namespace
+	@$(KUBECTL) create ns crossplane-system
 	@$(INFO) Starting Provider Spotify controllers
 	@$(GO) run cmd/provider/main.go --debug
 
