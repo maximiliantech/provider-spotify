@@ -18,12 +18,14 @@ package playlist
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	"github.com/pkg/errors"
 	"github.com/zmb3/spotify"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"golang.org/x/oauth2/clientcredentials"
-
-	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,15 +48,22 @@ const (
 	errGetPC        = "cannot get ProviderConfig"
 	errGetCreds     = "cannot get credentials"
 
-	errNewClient = "cannot create new Service"
+	errNewClient        = "cannot create new Service"
+	errExtractSecretKey = "cannot extract from secret when Secret reference not specified"
+	errUnmarshalCreds   = "ClientID and ClientSecret could not be unmarshalled from Secret"
 )
 
 var (
-	spotifyService = func(clientID string, clientSecret string) (*spotify.Client, error) {
+	spotifyService = func(creds []byte) (*spotify.Client, error) {
+		var credentials credentials
+		err := json.Unmarshal(creds, &credentials)
+		if err != nil {
+			return nil, errors.Wrap(err, errUnmarshalCreds)
+		}
 		ctx := context.Background()
 		config := &clientcredentials.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
+			ClientID:     credentials.ClientID,
+			ClientSecret: credentials.ClientSecret,
 			TokenURL:     spotify.TokenURL,
 		}
 		token, err := config.Token(ctx)
@@ -67,6 +76,11 @@ var (
 		return &client, nil
 	}
 )
+
+type credentials struct {
+	ClientID     string `json:"clientID"`
+	ClientSecret string `json:"clientSecret"`
+}
 
 // Setup adds a controller that reconciles Playlist managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
@@ -101,7 +115,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 type connector struct {
 	kube         client.Client
 	usage        resource.Tracker
-	newServiceFn func(clientID string, clientSecret string) (*spotify.Client, error)
+	newServiceFn func(creds []byte) (*spotify.Client, error)
 }
 
 // Connect typically produces an ExternalClient by:
@@ -125,12 +139,12 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	}
 
 	cd := pc.Spec.Credentials
-	_, err := resource.CommonCredentialExtractor(ctx, cd.Source, c.kube, cd.CommonCredentialSelectors)
+	creds, err := spotifyCredentialExtractor(ctx, cd.Source, c.kube, cd.CommonCredentialSelectors)
 	if err != nil {
 		return nil, errors.Wrap(err, errGetCreds)
 	}
 
-	svc, err := c.newServiceFn("", "") // TODO: pass in clientID and clientSecret
+	svc, err := c.newServiceFn(creds)
 	if err != nil {
 		return nil, errors.Wrap(err, errNewClient)
 	}
@@ -210,4 +224,24 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
 	fmt.Printf("Deleting: %+v", cr)
 
 	return nil
+}
+
+func spotifyCredentialExtractor(ctx context.Context, source xpv1.CredentialsSource, client client.Client, selector xpv1.CommonCredentialSelectors) ([]byte, error) {
+	switch source {
+	case xpv1.CredentialsSourceSecret:
+		return extractSpotifySecret(ctx, client, selector)
+	default:
+		return nil, errors.Errorf("%s not supported", source)
+	}
+}
+
+func extractSpotifySecret(ctx context.Context, client client.Client, s xpv1.CommonCredentialSelectors) ([]byte, error) {
+	if s.SecretRef == nil {
+		return nil, errors.New(errExtractSecretKey)
+	}
+	secret := &corev1.Secret{}
+	if err := client.Get(ctx, types.NamespacedName{Namespace: s.SecretRef.Namespace, Name: s.SecretRef.Name}, secret); err != nil {
+		return nil, errors.Wrap(err, errGetCreds)
+	}
+	return json.Marshal(secret.Data)
 }
