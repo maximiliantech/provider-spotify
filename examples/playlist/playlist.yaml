@@ -1,0 +1,13 @@
+apiVersion: playlist.spotify.crossplane.io/v1alpha1
+kind: Playlist
+metadata:
+  name: example
+spec:
+  forProvider:
+    userID: <USER_ID>
+    name: my-first-playlist
+    description: "This is an example playlist"
+    public: false
+    collaborative: false
+  providerConfigRef:
+    name: example
