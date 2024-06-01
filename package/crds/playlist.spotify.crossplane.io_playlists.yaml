@@ -96,8 +96,12 @@ spec:
                       if false it will be private. To be able to create private playlists,
                       the user must have granted the playlist-modify-private scope
                     type: boolean
+                  userID:
+                    description: The users Spotify user ID.
+                    type: string
                 required:
                 - name
+                - userID
                 type: object
               managementPolicies:
                 default:

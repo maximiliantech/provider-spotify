@@ -27,6 +27,9 @@ import (
 
 // PlaylistParameters are the configurable fields of a Playlist.
 type PlaylistParameters struct {
+	// The users Spotify user ID.
+	UserID string `json:"userID"`
+
 	// The name for the new playlist, for example "Your Coolest Playlist". This name does not need to be unique; a user may have several playlists with the same name.
 	Name string `json:"name"`
 
