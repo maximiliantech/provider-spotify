@@ -165,8 +165,17 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotPlaylist)
 	}
 
-	// These fmt statements should be removed in the real implementation.
-	fmt.Printf("Observing: %+v", cr)
+	if cr.Status.AtProvider.Id == "" {
+		return managed.ExternalObservation{}, nil
+	}
+
+	playlist, err := c.service.GetPlaylist(spotify.ID(cr.Status.AtProvider.Id))
+	if err != nil {
+		return managed.ExternalObservation{}, err
+	}
+	if playlist == nil {
+		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
 
 	return managed.ExternalObservation{
 		// Return false when the external resource does not exist. This lets
@@ -177,7 +186,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		// Return false when the external resource exists, but it not up to date
 		// with the desired managed resource state. This lets the managed
 		// resource reconciler know that it needs to call Update.
-		ResourceUpToDate: true,
+		ResourceUpToDate: c.isUpToDate(playlist, cr),
 
 		// Return any details that may be required to connect to the external
 		// resource. These will be stored as the connection secret.
@@ -190,8 +199,14 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	if !ok {
 		return managed.ExternalCreation{}, errors.New(errNotPlaylist)
 	}
-
-	fmt.Printf("Creating: %+v", cr)
+	var desc string
+	if cr.Spec.ForProvider.Description == nil {
+		desc = ""
+	}
+	_, err := c.service.CreatePlaylistForUser(cr.Spec.ForProvider.UserID, cr.Spec.ForProvider.Name, desc, *cr.Spec.ForProvider.Public)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
 
 	return managed.ExternalCreation{
 		// Optionally return any details that may be required to connect to the
@@ -224,6 +239,23 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
 	fmt.Printf("Deleting: %+v", cr)
 
 	return nil
+}
+
+// isUpToDate checks whether the actual state matches the desired state.
+func (c *external) isUpToDate(playlist *spotify.FullPlaylist, cr *v1alpha1.Playlist) bool {
+	if playlist.Name != cr.Spec.ForProvider.Name {
+		return false
+	}
+	if playlist.IsPublic != *cr.Spec.ForProvider.Public {
+		return false
+	}
+	if playlist.Collaborative != *cr.Spec.ForProvider.Collaborative {
+		return false
+	}
+	if playlist.Description != *cr.Spec.ForProvider.Description {
+		return false
+	}
+	return true
 }
 
 func spotifyCredentialExtractor(ctx context.Context, source xpv1.CredentialsSource, client client.Client, selector xpv1.CommonCredentialSelectors) ([]byte, error) {
