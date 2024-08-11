@@ -18,25 +18,21 @@ package playlist
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/pkg/errors"
-	"github.com/zmb3/spotify"
-	spotifyauth "github.com/zmb3/spotify/v2/auth"
-	"golang.org/x/oauth2/clientcredentials"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/crossplane/crossplane-runtime/pkg/connection"
 	"github.com/crossplane/crossplane-runtime/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
+	"github.com/pkg/errors"
+	"github.com/zmb3/spotify"
+	spotifyauth "github.com/zmb3/spotify/v2/auth"
+	"golang.org/x/oauth2/clientcredentials"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/maximiliantech/provider-spotify/apis/playlist/v1alpha1"
 	apisv1alpha1 "github.com/maximiliantech/provider-spotify/apis/v1alpha1"
@@ -56,16 +52,14 @@ const (
 
 var (
 	spotifyService = func(creds []byte) (*spotify.Client, error) {
-		var credentials credentials
+		var credentials Credentials
 		err := json.Unmarshal(creds, &credentials)
 		if err != nil {
 			return nil, errors.Wrap(err, errUnmarshalCreds)
 		}
-		clientID, _ := base64.StdEncoding.DecodeString(credentials.ClientID)
-		clientSecret, _ := base64.StdEncoding.DecodeString(credentials.ClientSecret)
 		config := &clientcredentials.Config{
-			ClientID:     string(clientID),
-			ClientSecret: string(clientSecret),
+			ClientID:     credentials.ClientID,
+			ClientSecret: credentials.ClientSecret,
 			TokenURL:     spotify.TokenURL,
 		}
 		ctx := context.Background()
@@ -80,7 +74,7 @@ var (
 	}
 )
 
-type credentials struct {
+type Credentials struct {
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 }
@@ -142,7 +136,8 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	}
 
 	cd := pc.Spec.Credentials
-	creds, err := spotifyCredentialExtractor(ctx, cd.Source, c.kube, cd.CommonCredentialSelectors)
+
+	creds, err := resource.CommonCredentialExtractor(ctx, cd.Source, c.kube, cd.CommonCredentialSelectors)
 	if err != nil {
 		return nil, errors.Wrap(err, errGetCreds)
 	}
@@ -259,24 +254,4 @@ func (c *external) isUpToDate(playlist *spotify.FullPlaylist, cr *v1alpha1.Playl
 		return false
 	}
 	return true
-}
-
-func spotifyCredentialExtractor(ctx context.Context, source xpv1.CredentialsSource, client client.Client, selector xpv1.CommonCredentialSelectors) ([]byte, error) {
-	switch source {
-	case xpv1.CredentialsSourceSecret:
-		return extractSpotifySecret(ctx, client, selector)
-	default:
-		return nil, errors.Errorf("%s not supported", source)
-	}
-}
-
-func extractSpotifySecret(ctx context.Context, client client.Client, s xpv1.CommonCredentialSelectors) ([]byte, error) {
-	if s.SecretRef == nil {
-		return nil, errors.New(errExtractSecretKey)
-	}
-	secret := &corev1.Secret{}
-	if err := client.Get(ctx, types.NamespacedName{Namespace: s.SecretRef.Namespace, Name: s.SecretRef.Name}, secret); err != nil {
-		return nil, errors.Wrap(err, errGetCreds)
-	}
-	return json.Marshal(secret.Data)
 }
